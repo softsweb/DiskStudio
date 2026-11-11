@@ -1,0 +1,7 @@
+data/
+output/
+work/
+local/
+*.iso
+__pycache__/
+presets.user.json

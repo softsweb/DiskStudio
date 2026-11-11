@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SoftsWeb Disc Studio</title>
+<meta name="description" content="Turn a picture into a disc you can burn. A local generator by SoftsWeb for the Disc Image Studio engine on Linux.">
+<link rel="icon" href="/static/softsweb-logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="bar-top">
+  <div class="inner">
+    <div class="brand"><a href="https://softsweb.com" rel="noopener"><img src="/static/softsweb-logo.svg" alt="SoftsWeb"></a><span>Disc Studio</span></div>
+    <div class="top-links">
+      <span id="health" role="status"></span>
+      <a href="https://softsweb.com" rel="noopener">softsweb.com</a>
+      <a href="https://www.youtube.com/@softsweb" rel="noopener">YouTube</a>
+    </div>
+  </div>
+</header>
+
+<main class="app">
+  <aside class="rail" aria-label="Settings">
+    <section class="group">
+      <h2 class="gt"><span class="step">1</span>Disc</h2>
+      <select id="preset" aria-label="Disc preset"></select>
+      <div class="note" id="presetNote"></div>
+      <details>
+        <summary>Edit calibration</summary>
+        <div class="grid2" id="params"></div>
+        <div class="row" style="margin-top:var(--space-sm)">
+          <input type="text" id="saveName" placeholder="Preset name" aria-label="Preset name">
+          <button id="savePreset" class="small">Save preset</button>
+        </div>
+        <div class="row" style="margin-top:var(--space-xs)"><button id="delPreset" class="small">Delete preset</button></div>
+      </details>
+    </section>
+
+    <section class="group">
+      <h2 class="gt"><span class="step">2</span>Image</h2>
+      <div class="drop" id="drop" tabindex="0" role="button">Drop an image or click to choose<span>PNG, JPEG, GIF, BMP or WebP</span>
+        <input type="file" id="file" accept="image/*" hidden></div>
+      <div class="note" id="imgInfo"></div>
+      <label for="fit">Fit</label>
+      <select id="fit"><option value="contain">Contain, whole image</option>
+                       <option value="cover">Cover, fill the disc</option></select>
+      <label for="zoom">Zoom <b id="v_zoom"></b></label><input type="range" id="zoom" min="0.3" max="3" step="0.01" value="1">
+      <div class="grid2">
+        <div><label for="dx">Shift X <b id="v_dx"></b></label><input type="range" id="dx" min="-0.5" max="0.5" step="0.005" value="0"></div>
+        <div><label for="dy">Shift Y <b id="v_dy"></b></label><input type="range" id="dy" min="-0.5" max="0.5" step="0.005" value="0"></div>
+      </div>
+    </section>
+
+    <section class="group">
+      <div class="group-head"><h2 class="gt"><span class="step">3</span>Tone</h2><button id="auto" class="small" disabled>Auto</button></div>
+      <label for="gamma">Gamma <b id="v_gamma"></b></label><input type="range" id="gamma" min="0.3" max="3" step="0.01" value="1">
+      <label for="brightness">Brightness <b id="v_brightness"></b></label><input type="range" id="brightness" min="-100" max="100" step="1" value="0">
+      <label for="contrast">Contrast <b id="v_contrast"></b></label><input type="range" id="contrast" min="0.3" max="3" step="0.01" value="1">
+      <label for="threshold">Threshold <b id="v_threshold"></b></label><input type="range" id="threshold" min="1" max="254" step="1" value="128">
+      <label for="tone_dither">Dither <b id="v_tone_dither"></b></label><input type="range" id="tone_dither" min="0" max="1" step="0.01" value="0.5">
+      <label for="tone_brightness">Engine brightness shift <b id="v_tone_brightness"></b></label><input type="range" id="tone_brightness" min="-64" max="64" step="1" value="0">
+      <label class="check" for="invert"><input type="checkbox" id="invert"> Invert</label>
+      <div class="note">The left preview is an instant approximation. Dither and engine brightness shift only show in the engine render.</div>
+    </section>
+  </aside>
+
+  <div class="stage">
+    <section class="panel" aria-label="Preview">
+      <div class="views">
+        <figure><figcaption class="cap">Instant preview</figcaption>
+          <div class="frame"><img id="approx" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="Approximate preview" hidden><span class="ph" id="approxPh">Add an image and the disc appears here as you adjust it.</span></div></figure>
+        <figure><figcaption class="cap"><span>Engine render</span>
+            <select id="view" aria-label="Render view">
+              <option value="real">Realistic look</option><option value="raw">Engine readback</option></select></figcaption>
+          <div class="frame" id="realFrame"><img id="real" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="Engine render" hidden><span class="ph" id="realPh">Press Generate disc image to see what the engine writes.</span></div>
+          <div id="lookWrap" hidden><div class="grid2 look" id="lookCtl">
+            <div><label for="light">Light angle <b id="v_light"></b></label><input type="range" id="light" min="0" max="359" step="1" value="300"></div>
+            <div><label for="rainbow">Rainbow <b id="v_rainbow"></b></label><input type="range" id="rainbow" min="0" max="1.5" step="0.05" value="0.8"></div>
+          </div>
+          <div class="note">The realistic look is a cosmetic mock-up of how the readback sits on a disc under a light. A burnt disc varies with the drive, dye and lighting.</div></div></figure>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="gt">Generate</h2>
+      <div class="actions" style="margin-top:var(--space-sm)">
+        <button class="primary" id="render" disabled>Generate disc image</button>
+        <button id="calib">Calibration test disc</button>
+      </div>
+      <div class="track"><i id="barFill"></i></div>
+      <div id="stage" role="status">Ready. A full render takes about a minute.</div>
+      <div id="result"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="gt">Calibrate another disc</h2>
+      <ol class="steps" style="margin-top:var(--space-sm)">
+        <li>Pick the closest preset and generate the calibration test disc.</li>
+        <li>Burn it, photograph it face-on and fit it in the Windows app, Calibration workspace.</li>
+        <li>Import the exported <code>.calibration.json</code> here, or type the numbers under Edit calibration and save a preset.</li>
+      </ol>
+      <div class="row" style="margin-top:var(--space-md)">
+        <input type="text" id="impName" placeholder="Name for the imported preset" aria-label="Imported preset name">
+        <button id="impBtn">Import .calibration.json</button>
+        <input type="file" id="impFile" accept=".json" hidden>
+      </div>
+      <div class="note">Your presets are saved in <code>webui/presets.user.json</code>. The same id overrides a built-in one.</div>
+    </section>
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="inner">
+    <div>
+      <a href="https://softsweb.com" rel="noopener"><img src="/static/softsweb-logo.svg" alt="SoftsWeb"></a>
+      <p>Disc Studio is a local interface made by SoftsWeb. It runs on your machine and sends nothing anywhere. The disc engine is
+        <a href="https://github.com/JiaFeiMiao-K-Cat/DiscImageStudio" rel="noopener">Disc Image Studio</a> by JiaFeiMiao-K-Cat, GPL-3.0.</p>
+    </div>
+    <nav aria-label="SoftsWeb">
+      <a href="https://softsweb.com" rel="noopener">softsweb.com</a>
+      <a href="https://www.youtube.com/@softsweb" rel="noopener">YouTube</a>
+      <a href="https://github.com/softsweb" rel="noopener">GitHub</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+let curPng = null, presets = [], imageId = null, timer = null, polling = null;
+const SLIDERS = ["zoom","dx","dy","gamma","brightness","contrast","threshold","tone_dither","tone_brightness"];
+const PKEYS = [["totalSectors","Total sectors"],["innerRadiusMm","Inner radius (mm)"],["outerRadiusMm","Outer radius (mm)"],
+  ["channelBitLengthNm","Channel bit (nm)"],["pitchLinear","Pitch linear"],["pitchQuadratic","Pitch quadratic"],["pitchCubic","Pitch cubic"]];
+
+PKEYS.forEach(([k,l]) => { $("params").insertAdjacentHTML("beforeend",
+  `<div><label>${l}</label><input type="number" step="any" id="p_${k}"></div>`); });
+
+function getParams() { const o = {}; PKEYS.forEach(([k]) => o[k] = parseFloat($("p_"+k).value)); return o; }
+function setParams(p) { PKEYS.forEach(([k]) => $("p_"+k).value = p[k]); }
+function getTone() {
+  const o = {fit: $("fit").value, invert: $("invert").checked};
+  SLIDERS.forEach(k => o[k] = parseFloat($(k).value));
+  return o;
+}
+function showVals() { SLIDERS.forEach(k => $("v_"+k).textContent = $(k).value); }
+
+async function loadPresets(selectId) {
+  presets = await (await fetch("/api/presets")).json();
+  $("preset").innerHTML = presets.map(p => `<option value="${p.id}">${p.name}${p.source==="user"?" (yours)":""}</option>`).join("");
+  const want = selectId || localStorage.getItem("preset") || "verbatim-dvd-plus-r-azo-43498";
+  if (presets.some(p => p.id === want)) $("preset").value = want;
+  applyPreset();
+}
+function applyPreset() {
+  const p = presets.find(x => x.id === $("preset").value); if (!p) return;
+  localStorage.setItem("preset", p.id);
+  setParams(p.params);
+  $("presetNote").textContent = p.source === "user" ? "Your saved calibration." : "Built-in calibration from the upstream project.";
+  schedule();
+}
+
+let busy = false, again = false;
+function schedule() { showVals(); updateApprox(); }
+async function updateApprox() {
+  if (!imageId) return;
+  if (busy) { again = true; return; }
+  busy = true;
+  try { await doApprox(); } finally { busy = false; if (again) { again = false; updateApprox(); } }
+}
+async function doApprox() {
+  const r = await fetch("/api/preview", {method: "POST", body: JSON.stringify({image_id: imageId, params: getParams(), ...getTone()})});
+  if (!r.ok) { $("approxPh").textContent = (await r.json()).error; $("approxPh").hidden = false; $("approx").hidden = true; return; }
+  const old = $("approx").src;
+  $("approx").src = URL.createObjectURL(await r.blob());
+  if (old.startsWith("blob:")) URL.revokeObjectURL(old);
+  $("approx").hidden = false; $("approxPh").hidden = true;
+}
+
+async function upload(file) {
+  const r = await fetch("/api/upload", {method: "POST", body: file});
+  const j = await r.json();
+  if (!r.ok) { $("imgInfo").innerHTML = `<span class="err">${j.error}</span>`; return; }
+  imageId = j.image_id;
+  $("imgInfo").textContent = `${file.name}: ${j.w} x ${j.h}` + (Math.min(j.w, j.h) < 1000 ? " (small image, may look soft)" : "");
+  $("render").disabled = false; $("auto").disabled = false;
+  updateApprox();
+}
+
+$("drop").onclick = () => $("file").click();
+$("file").onchange = e => e.target.files[0] && upload(e.target.files[0]);
+["dragover","dragenter"].forEach(ev => $("drop").addEventListener(ev, e => { e.preventDefault(); $("drop").classList.add("over"); }));
+["dragleave","drop"].forEach(ev => $("drop").addEventListener(ev, e => { e.preventDefault(); $("drop").classList.remove("over"); }));
+$("drop").addEventListener("drop", e => e.dataTransfer.files[0] && upload(e.dataTransfer.files[0]));
+SLIDERS.forEach(k => $(k).oninput = schedule);
+["fit","invert"].forEach(k => $(k).onchange = schedule);
+PKEYS.forEach(([k]) => $("p_"+k).oninput = schedule);
+$("preset").onchange = applyPreset;
+
+$("savePreset").onclick = async () => {
+  const name = $("saveName").value.trim(); if (!name) return alert("Enter a preset name");
+  const r = await fetch("/api/presets", {method: "POST", body: JSON.stringify({name, params: getParams()})});
+  const j = await r.json(); if (!r.ok) return alert(j.error);
+  await loadPresets(j.id);
+};
+$("delPreset").onclick = async () => {
+  const id = $("preset").value; if (!id.startsWith("user-")) return alert("Only your own presets can be deleted");
+  await fetch("/api/presets/" + id, {method: "DELETE"}); await loadPresets();
+};
+$("impBtn").onclick = () => $("impFile").click();
+$("impFile").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  let data; try { data = JSON.parse(await f.text()); } catch { return alert("Not valid JSON"); }
+  data.name = $("impName").value.trim() || f.name.replace(/\.calibration\.json$|\.json$/, "");
+  const r = await fetch("/api/presets/import", {method: "POST", body: JSON.stringify(data)});
+  const j = await r.json(); if (!r.ok) return alert(j.error);
+  await loadPresets(j.id);
+};
+
+async function startJob(url, body) {
+  $("render").disabled = $("calib").disabled = true;
+  $("result").innerHTML = ""; $("barFill").style.transform = "scaleX(0)"; $("realFrame").classList.add("loading");
+  const r = await fetch(url, {method: "POST", body: JSON.stringify(body)});
+  const j = await r.json();
+  if (!r.ok) { $("stage").innerHTML = `<span class="err">${j.error}</span>`; $("realFrame").classList.remove("loading"); $("render").disabled = !imageId; $("calib").disabled = false; return; }
+  clearInterval(polling);
+  polling = setInterval(async () => {
+    const s = await (await fetch("/api/job/" + j.job)).json();
+    $("barFill").style.transform = `scaleX(${s.progress || 0})`;
+    $("stage").textContent = s.stage + (s.progress ? ` (${Math.round(s.progress*100)}%)` : "");
+    if (s.state === "done") {
+      clearInterval(polling); $("realFrame").classList.remove("loading"); $("render").disabled = !imageId; $("calib").disabled = false;
+      curPng = s.png; showReal(); $("real").hidden = false; $("realPh").hidden = true;
+      const gb = (s.iso_size / 1073741824).toFixed(2);
+      $("result").innerHTML = `<div class="note">ISO (${gb} GB): <code>${s.iso_show||s.iso}</code></div>
+        <div class="note warn">Burn command (replace /dev/sr0 with your drive, use a blank DVD+R you can lose):</div>
+        <pre>xorriso -as cdrecord -v dev=/dev/sr0 speed=4 -dao -nopad '${s.iso_show||s.iso}'</pre>
+        <div class="note">Burn at low speed and do not interrupt the burn. The disc is a normal readable DVD, but its data is picture filler.</div>`;
+    } else if (s.state === "error") {
+      clearInterval(polling); $("realFrame").classList.remove("loading"); $("render").disabled = !imageId; $("calib").disabled = false;
+      $("stage").innerHTML = `<span class="err">${s.error}</span>`;
+    }
+  }, 700);
+}
+$("render").onclick = () => startJob("/api/render", {image_id: imageId, params: getParams(), ...getTone()});
+$("calib").onclick = () => startJob("/api/calibration-target", {params: getParams()});
+
+fetch("/api/status").then(r => r.json()).then(s => {
+  $("health").textContent = s.cli ? "engine ready" : "engine missing";
+  if (!s.cli) $("health").classList.add("err");
+});
+$("auto").onclick = async () => {
+  if (!imageId) return;
+  const r = await fetch("/api/auto", {method: "POST", body: JSON.stringify({image_id: imageId, ...getTone()})});
+  const t = await r.json(); if (!r.ok) return alert(t.error);
+  ["gamma","brightness","contrast","threshold","tone_dither","tone_brightness"].forEach(k => $(k).value = t[k]);
+  schedule();
+};
+function showReal() {
+  if (!curPng) return;
+  $("lookWrap").hidden = false;
+  const p = getParams(), t = Date.now();
+  $("real").src = $("view").value === "raw" ? "/output/" + curPng + "?t=" + t
+    : `/api/realistic?png=${curPng}&inner=${p.innerRadiusMm}&outer=${p.outerRadiusMm}&light=${$("light").value}&rainbow=${$("rainbow").value}&t=${t}`;
+  $("lookCtl").style.display = $("view").value === "raw" ? "none" : "";
+}
+let realBusy = false, realAgain = false;
+function liveReal() {
+  if (!curPng) return;
+  if (realBusy) { realAgain = true; return; }
+  realBusy = true; showReal();
+}
+const realDone = () => { realBusy = false; if (realAgain) { realAgain = false; liveReal(); } };
+$("real").onload = realDone; $("real").onerror = realDone;
+["light","rainbow"].forEach(k => $(k).oninput = () => { $("v_"+k).textContent = $(k).value; liveReal(); });
+$("view").onchange = showReal;
+$("v_light").textContent = $("light").value; $("v_rainbow").textContent = $("rainbow").value;
+showVals(); loadPresets();
+</script>
+</body>
+</html>

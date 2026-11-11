@@ -1,0 +1,10 @@
+services:
+  diskstudio:
+    build: .
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - ./data:/data
+    environment:
+      ISO_DISPLAY_DIR: data/output
+    restart: unless-stopped
