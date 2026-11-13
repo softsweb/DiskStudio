@@ -34,9 +34,14 @@ NAMES = {
     "philips-dvd-plus-r": "Philips DVD+R",
     "ritek-dvd-plus-r-e-series": "Ritek DVD+R E-series",
     "ritek-dvd-r-e-series": "Ritek DVD-R E-series",
+    "cd-80": "CD-R 80 min (standard)",
+    "cd-74": "CD-R 74 min (standard)",
+    "ritek-medical-aqua": "Ritek CD-R medical aqua",
+    "verbatim-azo-43438": "Verbatim CD-R AZO 43438",
 }
 KEYS = ("totalSectors", "innerRadiusMm", "outerRadiusMm", "channelBitLengthNm",
         "pitchLinear", "pitchQuadratic", "pitchCubic")
+CD_VELOCITY = 1200.0  # mm/s, the CD standard speed the upstream presets use
 
 
 def load_presets():
@@ -48,6 +53,12 @@ def load_presets():
                 continue
             out.append({"id": p["id"], "name": NAMES.get(p["id"], p["id"]),
                         "source": "built-in", "params": {k: p.get(k, 0) for k in KEYS}})
+        for p in data.get("cdPresets", []):
+            out.append({"id": p["id"], "name": NAMES.get(p["id"], p["id"]) + (" (measured)" if p["id"] in ("ritek-medical-aqua", "verbatim-azo-43438") else ""),
+                        "source": "built-in", "kind": "cd",
+                        "params": {"kind": "cd", "totalSectors": p["sectors"], "innerRadiusMm": p["innerRadiusMm"],
+                                   "outerRadiusMm": p["outerRadiusMm"],
+                                   "linearVelocityMmPerSecond": p.get("linearVelocityMmPerSecond", CD_VELOCITY)}})
     except Exception as e:  # keep UI usable without the repo
         print("built-in presets unavailable:", e, file=sys.stderr)
     user = []
@@ -82,6 +93,14 @@ def delete_user_preset(pid):
 
 
 def clean_params(src):
+    if src.get("kind") == "cd":
+        p = {"kind": "cd"}
+        for k in ("totalSectors", "innerRadiusMm", "outerRadiusMm", "linearVelocityMmPerSecond"):
+            p[k] = float(src.get(k, CD_VELOCITY if k.startswith("linear") else 0))
+        p["totalSectors"] = int(p["totalSectors"])
+        if p["totalSectors"] <= 0 or not (10 < p["innerRadiusMm"] < p["outerRadiusMm"] < 61) or p["linearVelocityMmPerSecond"] <= 0:
+            raise ValueError("CD needs sectors > 0, 10 < inner < outer < 61 mm and a positive velocity")
+        return p
     p = {k: float(src.get(k, 0)) for k in KEYS}
     p["totalSectors"] = int(p["totalSectors"])
     if p["totalSectors"] <= 0 or p["totalSectors"] % 16:
@@ -330,6 +349,8 @@ def run_job(job, kind, img_path, q, params):
         inp = wdir / "input.png"
         sq.save(inp)
 
+        if params.get("kind") == "cd":
+            return run_cd(job, kind, inp, q, params, tag, log)
         total = params["totalSectors"]
         geo = ["--inner-radius-mm", str(params["innerRadiusMm"]),
                "--outer-radius-mm", str(params["outerRadiusMm"]),
@@ -369,10 +390,38 @@ def run_job(job, kind, img_path, q, params):
         job.update(state="error", stage="error", error=str(e))
 
 
+def run_cd(job, kind, inp, q, params, tag, log):
+    """CD: the engine writes an audio track (WAV + CUE) whose bytes draw the picture."""
+    wav = OUT / f"{tag}.wav"
+    png = OUT / f"{tag}.png"
+    geo = ["--r0", str(params["innerRadiusMm"]), "--r1", str(params["outerRadiusMm"]),
+           "--sectors", str(params["totalSectors"]), "--velocity", str(params["linearVelocityMmPerSecond"])]
+    cmd = [str(CLI), "cd-generate", "--input", str(inp), "--output", str(wav),
+           "--tone-dither", str(float(q.get("tone_dither", 0.5))),
+           "--tone-brightness", str(int(q.get("tone_brightness", 0)))] + geo
+    job["stage"] = "generating CD audio track"
+    job["progress"] = 0.05
+    log("cd-generate ...")
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError("cd-generate failed: " + (r.stdout + r.stderr)[-300:])
+    job["stage"] = "rendering accurate preview"
+    job["progress"] = 0.8
+    r = subprocess.run([str(CLI), "cd-preview-track", "--track", str(wav), "--output", str(png)] + geo,
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError("cd-preview-track failed: " + (r.stdout + r.stderr)[-300:])
+    cue = wav.with_suffix(".cue")
+    shown = lambda f: (os.environ["ISO_DISPLAY_DIR"].rstrip("/") + "/" + f.name) if os.environ.get("ISO_DISPLAY_DIR") else str(f)
+    job.update(state="done", stage="done", progress=1.0, kind="cd", iso=str(wav), iso_show=shown(wav),
+               cue_show=shown(cue) if cue.exists() else None, png=png.name, iso_size=wav.stat().st_size)
+    prune()
+
+
 def prune():
-    isos = sorted(OUT.glob("*.iso"), key=lambda p: p.stat().st_mtime, reverse=True)
+    isos = sorted(list(OUT.glob("*.iso")) + list(OUT.glob("*.wav")), key=lambda p: p.stat().st_mtime, reverse=True)
     for old in isos[KEEP_ISOS:]:
-        for f in (old, old.with_suffix(".png"), Path(str(old) + ".json")):
+        for f in (old, old.with_suffix(".png"), old.with_suffix(".cue"), Path(str(old) + ".json")):
             f.unlink(missing_ok=True)
 
 

@@ -130,13 +130,26 @@ const $ = id => document.getElementById(id);
 let curPng = null, presets = [], imageId = null, timer = null, polling = null;
 const SLIDERS = ["zoom","dx","dy","gamma","brightness","contrast","threshold","tone_dither","tone_brightness"];
 const PKEYS = [["totalSectors","Total sectors"],["innerRadiusMm","Inner radius (mm)"],["outerRadiusMm","Outer radius (mm)"],
-  ["channelBitLengthNm","Channel bit (nm)"],["pitchLinear","Pitch linear"],["pitchQuadratic","Pitch quadratic"],["pitchCubic","Pitch cubic"]];
+  ["channelBitLengthNm","Channel bit (nm)"],["pitchLinear","Pitch linear"],["pitchQuadratic","Pitch quadratic"],["pitchCubic","Pitch cubic"],
+  ["linearVelocityMmPerSecond","Linear velocity (mm/s)"]];
+const CD_KEYS = ["totalSectors","innerRadiusMm","outerRadiusMm","linearVelocityMmPerSecond"];
+let curKind = "dvd";
 
 PKEYS.forEach(([k,l]) => { $("params").insertAdjacentHTML("beforeend",
-  `<div><label>${l}</label><input type="number" step="any" id="p_${k}"></div>`); });
+  `<div id="w_${k}"><label>${l}</label><input type="number" step="any" id="p_${k}"></div>`); });
 
-function getParams() { const o = {}; PKEYS.forEach(([k]) => o[k] = parseFloat($("p_"+k).value)); return o; }
-function setParams(p) { PKEYS.forEach(([k]) => $("p_"+k).value = p[k]); }
+function setKind(kind) {
+  curKind = kind;
+  PKEYS.forEach(([k]) => { const cd = CD_KEYS.includes(k), vel = k === "linearVelocityMmPerSecond";
+    $("w_"+k).hidden = kind === "cd" ? !cd : vel; });
+}
+function getParams() {
+  const o = {};
+  PKEYS.forEach(([k]) => { if (!$("w_"+k).hidden) o[k] = parseFloat($("p_"+k).value); });
+  if (curKind === "cd") o.kind = "cd";
+  return o;
+}
+function setParams(p) { setKind(p.kind === "cd" ? "cd" : "dvd"); PKEYS.forEach(([k]) => { if (p[k] !== undefined) $("p_"+k).value = p[k]; }); }
 function getTone() {
   const o = {fit: $("fit").value, invert: $("invert").checked};
   SLIDERS.forEach(k => o[k] = parseFloat($(k).value));
@@ -231,6 +244,14 @@ async function startJob(url, body) {
       clearInterval(polling); $("realFrame").classList.remove("loading"); $("render").disabled = !imageId; $("calib").disabled = false;
       curPng = s.png; showReal(); $("real").hidden = false; $("realPh").hidden = true;
       const gb = (s.iso_size / 1073741824).toFixed(2);
+      if (s.kind === "cd") {
+        const cue = s.cue_show || (s.iso_show || s.iso).replace(/\.wav$/, ".cue");
+        $("result").innerHTML = `<div class="note">Audio track (${gb} GB): <code>${s.iso_show||s.iso}</code></div>
+          <div class="note warn">Burn command (replace /dev/sr0 with your drive, use a blank CD-R you can lose). It must be written as an audio CD, track at once is not allowed:</div>
+          <pre>cdrdao write --device /dev/sr0 --speed 4 '${cue}'</pre>
+          <div class="note">The disc is a normal audio CD, the sound is noise made to draw the picture. Keep the volume low if you play it.</div>`;
+        return;
+      }
       $("result").innerHTML = `<div class="note">ISO (${gb} GB): <code>${s.iso_show||s.iso}</code></div>
         <div class="note warn">Burn command (replace /dev/sr0 with your drive, use a blank DVD+R you can lose):</div>
         <pre>xorriso -as cdrecord -v dev=/dev/sr0 speed=4 -dao -nopad '${s.iso_show||s.iso}'</pre>

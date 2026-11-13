@@ -20,7 +20,7 @@ Generated images and your saved presets are kept in `./data`.
 
 ## Make a disc
 
-1. Pick the disc preset that matches your blank DVD.
+1. Pick the disc preset that matches your blank disc (DVD or CD-R).
 2. Drop a picture, set the fit, then press Auto for the tone.
 3. Press Generate disc image. The engine render takes about a minute and shows what the disc will look like.
 4. Burn the ISO with the command shown in the page (it uses `-nopad` because the image fills the whole disc):
@@ -28,6 +28,18 @@ Generated images and your saved presets are kept in `./data`.
 ```bash
 xorriso -as cdrecord -v dev=/dev/sr0 speed=4 -dao -nopad data/output/render-XXXX.iso
 ```
+
+## CD-R
+
+CD presets (80 min, 74 min, Verbatim CD-R AZO 43438, Ritek medical aqua) are in the same list. A CD is written as an
+audio CD: the engine makes a WAV and a CUE sheet (about 0.85 GB) whose sound is noise that draws the picture. Burn the CUE
+as audio, disc at once, at low speed, with a blank CD-R you can lose:
+
+```bash
+cdrdao write --device /dev/sr0 --speed 4 data/output/render-XXXX.cue
+```
+
+Status: the CD image generation and the preview are tested. The CD burn itself is not tested yet, so expect to calibrate.
 
 ## Another kind of disc
 
